@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>माँधनिया परिवार वृक्ष</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;600;700&family=Noto+Sans+Devanagari:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fdf7ef;
+  --h1:#6b2f0e;--h2:#9a5520;--gold:#c9963a;
+  --male:#1a5e3a;--male2:#3aaf70;
+  --female:#8b1030;--female2:#d64560;
+  --wife:#6b2d82;--wife2:#b062d4;
+  --line:#b08040;--line2:#e0c070;
+  --text:#1e1008;--muted:#7a5535;
+  --card:#fff9f0;--border:#ddbf8a;
+  --shadow:rgba(80,40,10,.22);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);
+  font-family:'Noto Sans Devanagari',sans-serif;
+  color:var(--text);
+  overflow:hidden; /* outer body never scrolls */
+  height:100vh;
+  display:flex;flex-direction:column;
+}
+
+/* ── Header ── */
+header{
+  background:linear-gradient(135deg,var(--h1),var(--h2) 55%,var(--gold));
+  padding:13px 16px 11px;text-align:center;
+  box-shadow:0 4px 20px var(--shadow);
+  flex-shrink:0;z-index:300;
+}
+header h1{
+  font-family:'Noto Serif Devanagari',serif;
+  font-size:clamp(1rem,4vw,2rem);color:#fff8e8;
+  text-shadow:0 2px 8px rgba(0,0,0,.4);letter-spacing:.04em;
+}
+header h2{
+  font-family:'Noto Serif Devanagari',serif;
+  font-size:clamp(.7rem,2.5vw,1.1rem);color:#f5deb3;
+  margin-top:2px;font-weight:400;
+}
+header p{color:#e8c88a;font-size:.68rem;margin-top:3px}
+
+/* ── Legend ── */
+.legend{
+  display:flex;gap:8px 16px;flex-wrap:wrap;justify-content:center;
+  padding:6px 14px;background:#fff3e0;border-bottom:2px solid var(--border);
+  font-size:.68rem;color:var(--muted);flex-shrink:0;
+}
+.legend span{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dm{background:var(--male)}.df{background:var(--female)}.dw{background:var(--wife)}
+
+/* ── Zoom controls ── */
+.zoom-bar{
+  position:fixed;bottom:20px;right:16px;
+  display:flex;flex-direction:column;gap:6px;
+  z-index:500;
+}
+.zoom-bar button{
+  width:38px;height:38px;border-radius:50%;border:none;
+  background:var(--h1);color:#fff;font-size:1.2rem;
+  box-shadow:0 3px 10px var(--shadow);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s;
+}
+.zoom-bar button:hover{background:var(--h2)}
+.zoom-bar .reset-btn{font-size:.65rem;font-family:inherit;font-weight:700;letter-spacing:.03em}
+
+/* ── Pan & zoom viewport ── */
+#viewport{
+  flex:1;overflow:hidden;position:relative;
+  cursor:grab;
+  touch-action:none; /* handled manually */
+}
+#viewport.grabbing{cursor:grabbing}
+
+/* ── The tree canvas that gets transformed ── */
+#canvas{
+  position:absolute;
+  top:0;left:0;
+  transform-origin:0 0;
+  /* initial transform set by JS */
+}
+
+/* ── Tree layout ── */
+#tree{
+  display:flex;flex-direction:column;align-items:center;
+  gap:0;padding:30px 40px 60px;
+  min-width:max-content;
+}
+
+/* Generation */
+.gen{display:flex;flex-direction:column;align-items:center;width:100%}
+.gen-lbl{
+  font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--gold);font-weight:700;
+  background:var(--card);border:1.5px solid var(--border);
+  padding:2px 14px;border-radius:20px;margin-bottom:10px;white-space:nowrap;
+}
+.frow{
+  display:flex;flex-wrap:wrap;justify-content:center;
+  align-items:flex-start;gap:14px 22px;padding:0 6px;
+}
+
+/* Connectors */
+.vl{width:2px;background:var(--line);margin:0 auto;flex-shrink:0}
+.sep{
+  width:35%;max-width:260px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--border),transparent);
+  margin:8px auto;
+}
+
+/* Person */
+.person{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.circle{
+  width:62px;height:62px;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border:3px solid rgba(255,255,255,.55);
+  box-shadow:0 5px 16px var(--shadow);
+  position:relative;overflow:hidden;flex-shrink:0;cursor:default;
+}
+.circle::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:42%;
+  background:rgba(255,255,255,.2);border-radius:50% 50% 0 0;pointer-events:none;
+}
+.circle.m{background:linear-gradient(150deg,var(--male2),var(--male))}
+.circle.f{background:linear-gradient(150deg,var(--female2),var(--female))}
+.circle.w{background:linear-gradient(150deg,var(--wife2),var(--wife))}
+.emoji{font-size:1.55rem;line-height:1;position:relative;z-index:1}
+.rel-badge{
+  font-size:.44rem;color:rgba(255,255,255,.93);
+  font-weight:700;position:relative;z-index:1;margin-top:1px;line-height:1;
+}
+.nm{
+  margin-top:5px;font-size:.64rem;
+  text-align:center;color:var(--muted);font-weight:600;
+  max-width:80px;line-height:1.3;word-break:break-word;
+}
+.rel-tag{
+  font-size:.48rem;color:#fff;font-weight:700;
+  padding:1px 7px;border-radius:10px;margin-top:3px;white-space:nowrap;
+}
+.tag-son{background:var(--male)}
+.tag-dau{background:var(--female)}
+.tag-wife{background:var(--wife)}
+.tag-hus{background:#3a5fa0}
+.tag-anc{background:var(--gold);color:#2c1a0e}
+
+/* Couple */
+.couple{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.cprow{display:flex;align-items:flex-end;gap:4px}
+.plus-sym{
+  color:var(--gold);font-weight:900;font-size:1rem;
+  padding:0 3px;padding-bottom:32px;flex-shrink:0;
+}
+
+/* Children branch */
+.cbranch{display:flex;flex-direction:column;align-items:center;width:100%}
+.vl-sm{width:2px;height:14px;background:var(--line);margin:0 auto}
+.cbar-outer{position:relative;width:100%}
+.cbar-line{
+  height:3px;
+  background:linear-gradient(90deg,var(--line2),var(--line),var(--line2));
+  border-radius:2px;position:absolute;top:0;left:0;right:0;
+}
+.clist{
+  display:flex;flex-wrap:wrap;justify-content:center;
+  gap:6px 14px;padding-top:24px;width:100%;position:relative;
+}
+.ccol{display:flex;flex-direction:column;align-items:center}
+.cvl{width:2px;background:var(--line)}
+.clist-one{display:flex;flex-direction:column;align-items:center}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌳 माँधनिया परिवार वृक्ष</h1>
+  <h2>Mandhniya Family Tree</h2>
+  <p>Rajasthan &nbsp;·&nbsp; ६७ सदस्य &nbsp;·&nbsp; १० पीढ़ियाँ &nbsp;·&nbsp; 🔍 Pinch / Scroll to zoom · Drag to pan</p>
+</header>
+
+<div class="legend">
+  <span><em class="dot dm"></em>👨 पुरुष/पुत्र</span>
+  <span><em class="dot df"></em>👩 महिला/पुत्री</span>
+  <span><em class="dot dw"></em>💍 पत्नी</span>
+  <span><b style="color:var(--gold);font-size:.9rem">+</b>&nbsp;विवाह</span>
+</div>
+
+<div id="viewport">
+  <div id="canvas">
+    <div id="tree"></div>
+  </div>
+</div>
+
+<!-- Zoom controls -->
+<div class="zoom-bar">
+  <button onclick="zoom(1.2)" title="Zoom In">＋</button>
+  <button class="reset-btn" onclick="resetView()" title="Reset">⌂</button>
+  <button onclick="zoom(0.83)" title="Zoom Out">－</button>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────
+const P={
+  I1:{n:"आसूजी",s:"M"},
+  I2:{n:"तेजाजी",s:"M"},I3:{n:"खेराजी",s:"M"},I4:{n:"मानोजी",s:"M"},
+  I5:{n:"चूतरोजी",s:"M"},I6:{n:"पिरोजी",s:"M"},I7:{n:"दुर्गा जी",s:"M"},
+  I8:{n:"अमरोजी",s:"M"},I9:{n:"प्रतापजी",s:"M"},I10:{n:"नेनोजी",s:"M"},
+  I11:{n:"श्रीनाथजी",s:"M"},I12:{n:"भोमजी",s:"M"},
+  I13:{n:"उमोजी",s:"M"},I14:{n:"गोकलजी",s:"M"},I15:{n:"भोमाजी",s:"M"},
+  I16:{n:"हपजी",s:"M"},I17:{n:"कर्णोजी",s:"M"},
+  I18:{n:"अनुपजी",s:"M"},I19:{n:"जीतारामजी",s:"M"},I20:{n:"आसूजी(२)",s:"M"},
+  I21:{n:"केवलजी",s:"M"},I22:{n:"स्वरूपजी",s:"M"},I23:{n:"कीर्तारामजी",s:"M"},I24:{n:"धनजी",s:"M"},
+  // उमोजी की पुत्रियाँ
+  D1:{n:"गीता",s:"F"},D2:{n:"मीरगा",s:"F"},D3:{n:"सम",s:"F"},
+  D4:{n:"काली",s:"F"},D5:{n:"हेम",s:"F"},D6:{n:"गीता(२)",s:"F"},
+  I25:{n:"दुर्गारामजी",s:"M"},I26:{n:"सुवादेवी",s:"F"},
+  I27:{n:"अंदारामजी",s:"M"},I28:{n:"दुर्गादेवी",s:"F"},
+  I29:{n:"राजीव जी",s:"M"},I30:{n:"रामलाल जी",s:"M"},
+  I31:{n:"प्रकाश जी",s:"M"},I32:{n:"मादाराम जी",s:"M"},
+  I33:{n:"रुमा",s:"F"},I34:{n:"चंदू",s:"F"},
+  I35:{n:"सुवादेवी(२)",s:"F"},I36:{n:"संजू",s:"F"},
+  I37:{n:"जमना देवी",s:"F"},
+  I38:{n:"सुशीला",s:"F"},I39:{n:"हंसराज",s:"M"},
+  I40:{n:"सोहनी",s:"F"},I41:{n:"हीरा",s:"F"},
+  I42:{n:"चेतन जी",s:"M"},I43:{n:"प्रताप जी",s:"M"},
+  I44:{n:"संतोष",s:"M"},I45:{n:"राधा",s:"F"},
+  I46:{n:"महेंद्र जी",s:"M"},I47:{n:"सुशीला(२)",s:"F"},
+  I48:{n:"लक्षिव",s:"M"},
+  I49:{n:"अशोक",s:"M"},I50:{n:"दिनेश",s:"M"},
+  I51:{n:"व्रतिका",s:"F"},I52:{n:"आयुष",s:"M"},
+  I53:{n:"सुनीता",s:"F"},I54:{n:"शोभा",s:"F"},I55:{n:"प्रतिज्ञा",s:"F"},I56:{n:"अरविंद",s:"M"},
+  I57:{n:"रितिका",s:"F"},I58:{n:"अभिषेक",s:"M"},
+  I59:{n:"प्रियांशी",s:"F"},I60:{n:"नवीन",s:"M"},I61:{n:"हेमलता",s:"F"},
+};
+
+function mkPerson(id,role){
+  const p=P[id];if(!p)return document.createElement('span');
+  const isWife=(role==='wife');
+  const wrap=document.createElement('div');wrap.className='person';
+  const c=document.createElement('div');
+  c.className='circle '+(isWife?'w':(p.s==='F'?'f':'m'));
+  const em=document.createElement('div');em.className='emoji';
+  em.textContent=isWife?'💍':(p.s==='F'?'👩':'👨');
+  c.appendChild(em);
+  if(role){
+    const rb=document.createElement('div');rb.className='rel-badge';
+    const L={anc:'पूर्वज',son:'पुत्र',dau:'पुत्री',wife:'पत्नी',hus:'पति'};
+    rb.textContent=L[role]||'';c.appendChild(rb);
+  }
+  c.title=p.n;wrap.appendChild(c);
+  const nm=document.createElement('div');nm.className='nm';nm.textContent=p.n;
+  wrap.appendChild(nm);
+  if(role){
+    const rt=document.createElement('div');
+    const cls={anc:'tag-anc',son:'tag-son',dau:'tag-dau',wife:'tag-wife',hus:'tag-hus'};
+    rt.className='rel-tag '+(cls[role]||'');
+    const L={anc:'पूर्वज',son:'पुत्र',dau:'पुत्री',wife:'पत्नी',hus:'पति'};
+    rt.textContent=L[role]||'';wrap.appendChild(rt);
+  }
+  return wrap;
+}
+
+function vl(h){const d=document.createElement('div');d.className='vl';d.style.height=(h||20)+'px';return d;}
+function vlsm(){const d=document.createElement('div');d.className='vl-sm';d.style.height='14px';return d;}
+function sep(){const d=document.createElement('div');d.className='sep';return d;}
+
+function mkCouple(h,w,children,childRoles){
+  const wrap=document.createElement('div');wrap.className='couple';
+  const row=document.createElement('div');row.className='cprow';
+  row.appendChild(mkPerson(h,'hus'));
+  const pl=document.createElement('span');pl.className='plus-sym';pl.textContent='+';
+  row.appendChild(pl);
+  row.appendChild(mkPerson(w,'wife'));
+  wrap.appendChild(row);
+  if(children&&children.length){
+    wrap.appendChild(vlsm());
+    const branch=document.createElement('div');branch.className='cbranch';
+    if(children.length===1){
+      const one=document.createElement('div');one.className='clist-one';
+      const cvl=document.createElement('div');cvl.className='cvl';cvl.style.height='24px';
+      one.appendChild(cvl);
+      const role=childRoles?childRoles[0]:(P[children[0]].s==='F'?'dau':'son');
+      one.appendChild(mkPerson(children[0],role));
+      branch.appendChild(one);
+    }else{
+      const outer=document.createElement('div');outer.className='cbar-outer';
+      const bar=document.createElement('div');bar.className='cbar-line';outer.appendChild(bar);
+      const list=document.createElement('div');list.className='clist';
+      children.forEach((cid,i)=>{
+        const col=document.createElement('div');col.className='ccol';
+        const cvl=document.createElement('div');cvl.className='cvl';cvl.style.height='24px';
+        col.appendChild(cvl);
+        const role=childRoles?childRoles[i]:(P[cid].s==='F'?'dau':'son');
+        col.appendChild(mkPerson(cid,role));
+        list.appendChild(col);
+      });
+      outer.appendChild(list);branch.appendChild(outer);
+    }
+    wrap.appendChild(branch);
+  }
+  return wrap;
+}
+
+function addGen(tree,label,items,first){
+  if(!first){tree.appendChild(vl(22));tree.appendChild(sep());}
+  const g=document.createElement('div');g.className='gen';
+  const lbl=document.createElement('div');lbl.className='gen-lbl';lbl.textContent=label;
+  g.appendChild(lbl);
+  const row=document.createElement('div');row.className='frow';
+  items.forEach(it=>{
+    if(it.type==='single') row.appendChild(mkPerson(it.id,it.role));
+    else row.appendChild(mkCouple(it.h,it.w,it.c||[],it.cr));
+  });
+  g.appendChild(row);tree.appendChild(g);
+}
+
+const T=document.getElementById('tree');
+
+// पीढ़ी १
+addGen(T,"पीढ़ी १ – मूल पुरुष (Root Ancestor)",[
+  {type:'single',id:'I1',role:'anc'}
+],true);
+
+// पीढ़ी २
+addGen(T,"पीढ़ी २ – आसूजी के पुत्र",[
+  {type:'single',id:'I2',role:'son'},
+  {type:'single',id:'I3',role:'son'},
+  {type:'single',id:'I4',role:'son'},
+]);
+
+// पीढ़ी ३
+addGen(T,"पीढ़ी ३ – तेजाजी के पुत्र",[
+  {type:'single',id:'I5',role:'son'},
+  {type:'single',id:'I6',role:'son'},
+  {type:'single',id:'I7',role:'son'},
+]);
+
+// पीढ़ी ४
+addGen(T,"पीढ़ी ४ – चूतरोजी के पुत्र",[
+  {type:'single',id:'I8',role:'son'},
+  {type:'single',id:'I9',role:'son'},
+  {type:'single',id:'I10',role:'son'},
+  {type:'single',id:'I11',role:'son'},
+  {type:'single',id:'I12',role:'son'},
+]);
+
+// पीढ़ी ५
+addGen(T,"पीढ़ी ५ – प्रतापजी के पुत्र",[
+  {type:'single',id:'I13',role:'son'},
+  {type:'single',id:'I14',role:'son'},
+  {type:'single',id:'I15',role:'son'},
+  {type:'single',id:'I16',role:'son'},
+  {type:'single',id:'I17',role:'son'},
+]);
+
+// पीढ़ी ६ – उमोजी + उनके पुत्र + पुत्रियाँ एक साथ
+addGen(T,"पीढ़ी ६ – उमोजी के पुत्र-पुत्री",[
+  {type:'single',id:'I18',role:'son'},
+  {type:'single',id:'I19',role:'son'},
+  {type:'single',id:'I20',role:'son'},
+  {type:'single',id:'I21',role:'son'},
+  {type:'single',id:'I22',role:'son'},
+  {type:'single',id:'I23',role:'son'},
+  {type:'single',id:'I24',role:'son'},
+  // उमोजी की पुत्रियाँ
+  {type:'single',id:'D1',role:'dau'},
+  {type:'single',id:'D2',role:'dau'},
+  {type:'single',id:'D3',role:'dau'},
+  {type:'single',id:'D4',role:'dau'},
+  {type:'single',id:'D5',role:'dau'},
+  {type:'single',id:'D6',role:'dau'},
+]);
+
+// पीढ़ी ७
+addGen(T,"पीढ़ी ७ – जीतारामजी का परिवार",[
+  {
+    type:'couple',h:'I19',w:'I37',
+    c:['I25','I27','I29','I30','I31','I32','I40','I41'],
+    cr:['son','son','son','son','son','son','dau','dau']
+  }
+]);
+
+// पीढ़ी ८
+addGen(T,"पीढ़ी ८ – पुत्र-पुत्रियों के परिवार",[
+  {type:'couple',h:'I25',w:'I26',c:['I38','I39','I44','I45'],cr:['dau','son','son','dau']},
+  {type:'couple',h:'I27',w:'I28',c:['I49','I50'],cr:['son','son']},
+  {type:'couple',h:'I29',w:'I33',c:['I51','I52'],cr:['dau','son']},
+  {type:'couple',h:'I30',w:'I35',c:['I53','I54','I55','I56'],cr:['dau','dau','dau','son']},
+  {type:'couple',h:'I31',w:'I36',c:['I57','I58'],cr:['dau','son']},
+  {type:'couple',h:'I32',w:'I34',c:['I59','I60','I61'],cr:['dau','son','dau']},
+  {type:'couple',h:'I42',w:'I40',c:[],cr:[]},
+  {type:'couple',h:'I43',w:'I41',c:[],cr:[]},
+]);
+
+// पीढ़ी ९
+addGen(T,"पीढ़ी ९ – पौत्र-पौत्री पीढ़ी",[
+  {type:'couple',h:'I39',w:'I47',c:['I48'],cr:['son']},
+  {type:'couple',h:'I46',w:'I38',c:[],cr:[]},
+  {type:'single',id:'I44',role:'son'},
+  {type:'single',id:'I45',role:'dau'},
+  {type:'single',id:'I49',role:'son'},
+  {type:'single',id:'I50',role:'son'},
+  {type:'single',id:'I51',role:'dau'},
+  {type:'single',id:'I52',role:'son'},
+  {type:'single',id:'I53',role:'dau'},
+  {type:'single',id:'I54',role:'dau'},
+  {type:'single',id:'I55',role:'dau'},
+  {type:'single',id:'I56',role:'son'},
+  {type:'single',id:'I57',role:'dau'},
+  {type:'single',id:'I58',role:'son'},
+  {type:'single',id:'I59',role:'dau'},
+  {type:'single',id:'I60',role:'son'},
+  {type:'single',id:'I61',role:'dau'},
+]);
+
+// पीढ़ी १०
+addGen(T,"पीढ़ी १० – नवीनतम पीढ़ी",[
+  {type:'single',id:'I48',role:'son'},
+]);
+
+// ─────────────────────────────────────────────────────────────
+// PAN + ZOOM ENGINE
+// ─────────────────────────────────────────────────────────────
+const viewport = document.getElementById('viewport');
+const canvas   = document.getElementById('canvas');
+
+let scale = 1, tx = 0, ty = 0;
+let isPanning = false, startX = 0, startY = 0, startTx = 0, startTy = 0;
+
+function applyTransform(){
+  canvas.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+}
+
+function clampScale(s){ return Math.min(3, Math.max(0.2, s)); }
+
+// Centre the root node horizontally, start from top with a small margin
+function resetView(){
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+  const tw = canvas.scrollWidth;
+  const th = canvas.scrollHeight;
+
+  // Fit scale so tree width fills viewport nicely (max 1x)
+  const fitScale = Math.min(1, (vw - 40) / tw);
+  scale = clampScale(fitScale);
+
+  // Centre horizontally, top-aligned with small padding
+  tx = (vw - tw * scale) / 2;
+  ty = 20;
+  applyTransform();
+}
+
+// Zoom toward a point (cx, cy) in viewport coords
+function zoomAt(cx, cy, factor){
+  const newScale = clampScale(scale * factor);
+  const ratio = newScale / scale;
+  tx = cx - ratio * (cx - tx);
+  ty = cy - ratio * (cy - ty);
+  scale = newScale;
+  applyTransform();
+}
+
+function zoom(factor){
+  const vw = viewport.clientWidth, vh = viewport.clientHeight;
+  zoomAt(vw/2, vh/2, factor);
+}
+
+// ── Mouse wheel ────────────────────────────────────────────────
+viewport.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const rect = viewport.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  zoomAt(cx, cy, factor);
+},{passive:false});
+
+// ── Mouse drag ────────────────────────────────────────────────
+viewport.addEventListener('mousedown', e=>{
+  if(e.button!==0) return;
+  isPanning=true; startX=e.clientX; startY=e.clientY;
+  startTx=tx; startTy=ty;
+  viewport.classList.add('grabbing');
+});
+window.addEventListener('mousemove', e=>{
+  if(!isPanning) return;
+  tx = startTx + (e.clientX - startX);
+  ty = startTy + (e.clientY - startY);
+  applyTransform();
+});
+window.addEventListener('mouseup', ()=>{
+  isPanning=false; viewport.classList.remove('grabbing');
+});
+
+// ── Touch drag & pinch ────────────────────────────────────────
+let lastTouches = [];
+
+function touchMid(t1, t2, rect){
+  return {
+    x: ((t1.clientX + t2.clientX)/2) - rect.left,
+    y: ((t1.clientY + t2.clientY)/2) - rect.top
+  };
+}
+function touchDist(t1, t2){
+  return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+}
+
+viewport.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  lastTouches = Array.from(e.touches);
+},{passive:false});
+
+viewport.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  const touches = Array.from(e.touches);
+  const rect = viewport.getBoundingClientRect();
+
+  if(touches.length === 1 && lastTouches.length === 1){
+    // Single-finger pan
+    const dx = touches[0].clientX - lastTouches[0].clientX;
+    const dy = touches[0].clientY - lastTouches[0].clientY;
+    tx += dx; ty += dy;
+    applyTransform();
+  } else if(touches.length === 2 && lastTouches.length >= 2){
+    // Pinch zoom
+    const prevDist = touchDist(lastTouches[0], lastTouches[1]);
+    const currDist = touchDist(touches[0], touches[1]);
+    const factor = currDist / prevDist;
+    const mid = touchMid(touches[0], touches[1], rect);
+    zoomAt(mid.x, mid.y, factor);
+
+    // Also handle pan during pinch
+    const prevMid = touchMid(lastTouches[0], lastTouches[1], rect);
+    tx += mid.x - prevMid.x;
+    ty += mid.y - prevMid.y;
+    applyTransform();
+  }
+  lastTouches = touches;
+},{passive:false});
+
+viewport.addEventListener('touchend', e=>{
+  lastTouches = Array.from(e.touches);
+},{passive:false});
+
+// ── Initial centre on load ────────────────────────────────────
+// Wait for fonts + layout to settle, then centre
+window.addEventListener('load', ()=>{
+  setTimeout(resetView, 120);
+});
+// Fallback in case load already fired
+setTimeout(resetView, 200);
+</script>
+</body>
+</html>
