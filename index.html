@@ -1,0 +1,572 @@
+cat > /mnt/user-data/outputs/family-tree.html << 'ENDOFFILE'
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mandhniya Family Tree</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;600;700&family=Noto+Sans+Devanagari:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fdf7ef;--h1:#6b2f0e;--h2:#9a5520;--gold:#c9963a;
+  --male:#1a5e3a;--male2:#3aaf70;
+  --female:#8b1030;--female2:#d64560;
+  --wife:#6b2d82;--wife2:#b062d4;
+  --line:#b08040;--line2:#dfc06a;
+  --text:#1e1008;--muted:#7a5535;
+  --card:#fff9f0;--border:#ddbf8a;
+  --shadow:rgba(80,40,10,.22);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);font-family:'Noto Sans Devanagari',sans-serif;
+  color:var(--text);overflow:hidden;height:100vh;display:flex;flex-direction:column;
+}
+header{
+  background:linear-gradient(135deg,var(--h1),var(--h2) 55%,var(--gold));
+  padding:12px 16px 10px;text-align:center;
+  box-shadow:0 4px 20px var(--shadow);flex-shrink:0;z-index:300;
+}
+header h1{font-family:'Noto Serif Devanagari',serif;font-size:clamp(1rem,4vw,2rem);color:#fff8e8;text-shadow:0 2px 8px rgba(0,0,0,.4);letter-spacing:.04em}
+header h2{font-family:'Noto Serif Devanagari',serif;font-size:clamp(.7rem,2.5vw,1.05rem);color:#f5deb3;margin-top:2px;font-weight:400}
+header p{color:#e8c88a;font-size:.6rem;margin-top:2px}
+.legend{
+  display:flex;gap:8px 16px;flex-wrap:wrap;justify-content:center;
+  padding:5px 14px;background:#fff3e0;border-bottom:2px solid var(--border);
+  font-size:.66rem;color:var(--muted);flex-shrink:0;
+}
+.legend span{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dm{background:var(--male)}.df{background:var(--female)}.dw{background:var(--wife)}
+
+.zoom-bar{position:fixed;bottom:18px;right:14px;display:flex;flex-direction:column;gap:6px;z-index:500}
+.zoom-bar button{width:36px;height:36px;border-radius:50%;border:none;background:var(--h1);color:#fff;font-size:1.05rem;box-shadow:0 3px 10px var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.zoom-bar button:hover{background:var(--h2)}
+.zoom-bar .zbr{font-size:.6rem;font-weight:700}
+
+#viewport{flex:1;overflow:hidden;position:relative;cursor:grab;touch-action:none}
+#viewport.grabbing{cursor:grabbing}
+#canvas{position:absolute;top:0;left:0;transform-origin:0 0}
+#lines-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
+#tree-container{position:absolute;top:0;left:0}
+
+/* ── Generation label band ── */
+.gen-band{
+  position:absolute;left:0;right:0;
+  display:flex;align-items:center;
+  pointer-events:none;
+}
+.gen-badge{
+  background:var(--card);border:1.5px solid var(--border);
+  color:var(--gold);font-weight:700;font-size:.56rem;
+  letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 12px;border-radius:20px;white-space:nowrap;
+  box-shadow:0 2px 6px var(--shadow);
+}
+.gen-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
+
+/* ── Node ── */
+.node{position:absolute;display:flex;flex-direction:column;align-items:center;cursor:pointer;width:68px}
+.node:hover .circle,.node:hover .circle-img{transform:translateY(-3px) scale(1.06);box-shadow:0 10px 26px var(--shadow)}
+.circle{
+  width:56px;height:56px;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border:3px solid rgba(255,255,255,.55);box-shadow:0 4px 14px var(--shadow);
+  position:relative;overflow:hidden;flex-shrink:0;
+  transition:transform .18s,box-shadow .18s;
+}
+.circle::before{content:'';position:absolute;top:0;left:0;right:0;height:42%;background:rgba(255,255,255,.2);border-radius:50% 50% 0 0;pointer-events:none}
+.circle.m{background:linear-gradient(150deg,var(--male2),var(--male))}
+.circle.f{background:linear-gradient(150deg,var(--female2),var(--female))}
+.circle.w{background:linear-gradient(150deg,var(--wife2),var(--wife))}
+.circle-img{width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;border:3px solid rgba(255,255,255,.75);box-shadow:0 4px 14px var(--shadow);transition:transform .18s,box-shadow .18s;position:relative}
+.circle-img img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
+.circle-img.m{outline:3px solid var(--male);outline-offset:1px}
+.circle-img.f{outline:3px solid var(--female);outline-offset:1px}
+.circle-img.w{outline:3px solid var(--wife);outline-offset:1px}
+.emoji{font-size:1.4rem;line-height:1;position:relative;z-index:1}
+.rel-badge-inner{font-size:.4rem;color:rgba(255,255,255,.93);font-weight:700;position:relative;z-index:1;margin-top:1px;line-height:1}
+.nm{margin-top:4px;font-size:.58rem;text-align:center;color:var(--muted);font-weight:600;max-width:68px;line-height:1.25;word-break:break-word}
+.rel-tag{font-size:.42rem;color:#fff;font-weight:700;padding:1px 6px;border-radius:10px;margin-top:2px;white-space:nowrap}
+.tag-son{background:var(--male)}.tag-dau{background:var(--female)}
+.tag-wife{background:var(--wife)}.tag-hus{background:#3a5fa0}.tag-anc{background:var(--gold);color:#2c1a0e}
+
+/* ── Popup ── */
+#popup-overlay{position:fixed;inset:0;background:rgba(10,5,0,.65);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px}
+#popup-overlay.show{display:flex}
+#popup{background:var(--card);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.4);max-width:420px;width:100%;max-height:90vh;overflow-y:auto;position:relative;animation:popIn .22s cubic-bezier(.34,1.56,.64,1)}
+@keyframes popIn{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+#popup-close{position:absolute;top:12px;right:14px;background:rgba(0,0,0,.12);border:none;border-radius:50%;width:32px;height:32px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);transition:background .15s;z-index:10}
+#popup-close:hover{background:rgba(0,0,0,.22)}
+#popup-header{background:linear-gradient(135deg,var(--h1),var(--h2) 55%,var(--gold));border-radius:20px 20px 0 0;padding:26px 20px 18px;display:flex;flex-direction:column;align-items:center;gap:10px}
+#popup-photo-wrap{width:88px;height:88px;border-radius:50%;border:4px solid rgba(255,255,255,.7);overflow:hidden;background:#555;box-shadow:0 6px 20px rgba(0,0,0,.3);flex-shrink:0}
+#popup-photo-wrap img{width:100%;height:100%;object-fit:cover;object-position:center top}
+#popup-emoji-fallback{width:88px;height:88px;border-radius:50%;border:4px solid rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;font-size:2.7rem;background:rgba(255,255,255,.15);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+#popup-name{font-family:'Noto Serif Devanagari',serif;font-size:1.2rem;color:#fff8e8;font-weight:700;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,.3)}
+#popup-role-tag{font-size:.68rem;font-weight:700;padding:3px 14px;border-radius:20px;background:rgba(255,255,255,.25);color:#fff;letter-spacing:.04em}
+#popup-body{padding:16px 20px 20px}
+.info-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 12px;font-size:.76rem}
+.info-label{color:var(--muted);font-weight:600;white-space:nowrap}
+.info-val{color:var(--text);font-weight:500}
+.popup-divider{height:1px;background:var(--border);margin:12px 0}
+#popup-extra-title{font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:10px}
+#popup-extra-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.extra-photo{aspect-ratio:1;border-radius:10px;overflow:hidden;background:#e8d8c0;border:2px solid var(--border);cursor:pointer;transition:transform .15s,box-shadow .15s}
+.extra-photo:hover{transform:scale(1.04);box-shadow:0 6px 18px var(--shadow)}
+.extra-photo img{width:100%;height:100%;object-fit:cover}
+.extra-photo .no-photo{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:.56rem;text-align:center;padding:6px}
+.extra-photo .no-photo span{font-size:1.25rem}
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;display:none;align-items:center;justify-content:center}
+#lightbox.show{display:flex}
+#lightbox img{max-width:92vw;max-height:88vh;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+#lightbox-close{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.15);border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌳 Mandhniya Family Tree</h1>
+  <h2>माँधनिया परिवार वृक्ष – Rajasthan</h2>
+  <p>67 Members · 10 Generations | Scroll/Pinch = Zoom · Drag = Pan · Tap = Profile</p>
+</header>
+<div class="legend">
+  <span><em class="dot dm"></em>👨 Male / Son</span>
+  <span><em class="dot df"></em>👩 Female / Daughter</span>
+  <span><em class="dot dw"></em>💍 Wife</span>
+  <span><b style="color:var(--gold)">+</b> Marriage</span>
+  <span>Tap circle = Profile</span>
+</div>
+
+<div id="viewport">
+  <div id="canvas">
+    <svg id="lines-svg"></svg>
+    <div id="tree-container"></div>
+  </div>
+</div>
+
+<div class="zoom-bar">
+  <button onclick="zoom(1.18)">＋</button>
+  <button class="zbr" onclick="resetView()">⌂</button>
+  <button onclick="zoom(0.84)">－</button>
+</div>
+
+<div id="popup-overlay">
+  <div id="popup">
+    <button id="popup-close" onclick="closePopup()">✕</button>
+    <div id="popup-header">
+      <div id="popup-photo-wrap" style="display:none"><img id="popup-photo" src="" alt=""></div>
+      <div id="popup-emoji-fallback"></div>
+      <div id="popup-name"></div>
+      <div id="popup-role-tag"></div>
+    </div>
+    <div id="popup-body">
+      <div class="info-grid" id="popup-info"></div>
+      <div class="popup-divider"></div>
+      <div id="popup-extra-title">📷 More Photos</div>
+      <div id="popup-extra-photos"></div>
+    </div>
+  </div>
+</div>
+<div id="lightbox">
+  <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// PERSON DATA  — all numerals Arabic (1,2,3…)
+// ═══════════════════════════════════════════
+const P={
+  I1:{n:"Asuji",           hi:"आसूजी",        s:"M", gen:"Generation 1", relation:"Root Ancestor", notes:"Founding patriarch of Mandhniya family"},
+  I2:{n:"Tejaji",          hi:"तेजाजी",        s:"M", gen:"Generation 2", relation:"Son of Asuji"},
+  I3:{n:"Kheraji",         hi:"खेराजी",        s:"M", gen:"Generation 2", relation:"Son of Asuji"},
+  I4:{n:"Manoji",          hi:"मानोजी",        s:"M", gen:"Generation 2", relation:"Son of Asuji"},
+  I5:{n:"Chutaroji",       hi:"चूतरोजी",       s:"M", gen:"Generation 3", relation:"Son of Tejaji"},
+  I6:{n:"Piroji",          hi:"पिरोजी",        s:"M", gen:"Generation 3", relation:"Son of Tejaji"},
+  I7:{n:"Durga Ji",        hi:"दुर्गा जी",     s:"M", gen:"Generation 3", relation:"Son of Tejaji"},
+  I8:{n:"Amaroji",         hi:"अमरोजी",        s:"M", gen:"Generation 4", relation:"Son of Chutaroji"},
+  I9:{n:"Pratapji",        hi:"प्रतापजी",      s:"M", gen:"Generation 4", relation:"Son of Chutaroji"},
+  I10:{n:"Nenoji",         hi:"नेनोजी",        s:"M", gen:"Generation 4", relation:"Son of Chutaroji"},
+  I11:{n:"Shreenathji",    hi:"श्रीनाथजी",     s:"M", gen:"Generation 4", relation:"Son of Chutaroji"},
+  I12:{n:"Bhomji",         hi:"भोमजी",         s:"M", gen:"Generation 4", relation:"Son of Chutaroji"},
+  I13:{n:"Umoji",          hi:"उमोजी",         s:"M", gen:"Generation 5", relation:"Son of Pratapji"},
+  I14:{n:"Gokalji",        hi:"गोकलजी",        s:"M", gen:"Generation 5", relation:"Son of Pratapji"},
+  I15:{n:"Bhomaji",        hi:"भोमाजी",        s:"M", gen:"Generation 5", relation:"Son of Pratapji"},
+  I16:{n:"Hapji",          hi:"हपजी",          s:"M", gen:"Generation 5", relation:"Son of Pratapji"},
+  I17:{n:"Karnoji",        hi:"कर्णोजी",       s:"M", gen:"Generation 5", relation:"Son of Pratapji"},
+  I18:{n:"Anupji",         hi:"अनुपजी",        s:"M", gen:"Generation 6", relation:"Son of Umoji"},
+  I19:{n:"Jeetaramji",     hi:"जीतारामजी",     s:"M", gen:"Generation 6", relation:"Son of Umoji"},
+  I20:{n:"Asuji 2",        hi:"आसूजी 2",       s:"M", gen:"Generation 6", relation:"Son of Umoji"},
+  I21:{n:"Kevalji",        hi:"केवलजी",        s:"M", gen:"Generation 6", relation:"Son of Umoji"},
+  I22:{n:"Swarooopji",     hi:"स्वरूपजी",      s:"M", gen:"Generation 6", relation:"Son of Umoji"},
+  I23:{n:"Keertaramji",    hi:"कीर्तारामजी",   s:"M", gen:"Generation 6", relation:"Son of Umoji"},
+  I24:{n:"Dhanji",         hi:"धनजी",          s:"M", gen:"Generation 6", relation:"Son of Umoji"},
+  D1:{n:"Geeta",           hi:"गीता",          s:"F", gen:"Generation 6", relation:"Daughter of Umoji"},
+  D2:{n:"Mirga",           hi:"मीरगा",         s:"F", gen:"Generation 6", relation:"Daughter of Umoji"},
+  D3:{n:"Sam",             hi:"सम",            s:"F", gen:"Generation 6", relation:"Daughter of Umoji"},
+  D4:{n:"Kali",            hi:"काली",          s:"F", gen:"Generation 6", relation:"Daughter of Umoji"},
+  D5:{n:"Hem",             hi:"हेम",           s:"F", gen:"Generation 6", relation:"Daughter of Umoji"},
+  D6:{n:"Geeta 2",         hi:"गीता 2",        s:"F", gen:"Generation 6", relation:"Daughter of Umoji"},
+  I25:{n:"Durgaarmji",     hi:"दुर्गारामजी",   s:"M", gen:"Generation 7", relation:"Son of Jeetaramji"},
+  I26:{n:"Suvadevi",       hi:"सुवादेवी",      s:"F", gen:"Generation 7", relation:"Wife of Durgaarmji"},
+  I27:{n:"Andaramji",      hi:"अंदारामजी",     s:"M", gen:"Generation 7", relation:"Son of Jeetaramji"},
+  I28:{n:"Durgadevi",      hi:"दुर्गादेवी",    s:"F", gen:"Generation 7", relation:"Wife of Andaramji"},
+  I29:{n:"Rajeev Ji",      hi:"राजीव जी",      s:"M", gen:"Generation 7", relation:"Son of Jeetaramji"},
+  I30:{n:"Ramlal Ji",      hi:"रामलाल जी",     s:"M", gen:"Generation 7", relation:"Son of Jeetaramji"},
+  I31:{n:"Prakash Ji",     hi:"प्रकाश जी",     s:"M", gen:"Generation 7", relation:"Son of Jeetaramji"},
+  I32:{n:"Madaram Ji",     hi:"मादाराम जी",    s:"M", gen:"Generation 7", relation:"Son of Jeetaramji"},
+  I33:{n:"Ruma",           hi:"रुमा",          s:"F", gen:"Generation 7", relation:"Wife of Rajeev Ji"},
+  I34:{n:"Chandu",         hi:"चंदू",          s:"F", gen:"Generation 7", relation:"Wife of Madaram Ji"},
+  I35:{n:"Suvadevi 2",     hi:"सुवादेवी 2",    s:"F", gen:"Generation 7", relation:"Wife of Ramlal Ji"},
+  I36:{n:"Sanju",          hi:"संजू",          s:"F", gen:"Generation 7", relation:"Wife of Prakash Ji"},
+  I37:{n:"Jamna Devi",     hi:"जमना देवी",     s:"F", gen:"Generation 7", relation:"Wife of Jeetaramji"},
+  I38:{n:"Sushila",        hi:"सुशीला",        s:"F", gen:"Generation 8", relation:"Daughter of Durgaarmji"},
+  I39:{n:"Hansraj",        hi:"हंसराज",        s:"M", gen:"Generation 8", relation:"Son of Durgaarmji"},
+  I40:{n:"Sohni",          hi:"सोहनी",         s:"F", gen:"Generation 7", relation:"Daughter of Jeetaramji"},
+  I41:{n:"Hira",           hi:"हीरा",          s:"F", gen:"Generation 7", relation:"Daughter of Jeetaramji"},
+  I42:{n:"Chetan Ji",      hi:"चेतन जी",       s:"M", gen:"Generation 8", relation:"Husband of Sohni"},
+  I43:{n:"Pratap Ji",      hi:"प्रताप जी",     s:"M", gen:"Generation 8", relation:"Husband of Hira"},
+  I44:{n:"Santosh",        hi:"संतोष",         s:"M", gen:"Generation 8", relation:"Son of Durgaarmji"},
+  I45:{n:"Radha",          hi:"राधा",          s:"F", gen:"Generation 8", relation:"Daughter of Durgaarmji"},
+  I46:{n:"Mahendra Ji",    hi:"महेंद्र जी",    s:"M", gen:"Generation 9", relation:"Husband of Sushila"},
+  I47:{n:"Sushila 2",      hi:"सुशीला 2",      s:"F", gen:"Generation 9", relation:"Wife of Hansraj"},
+  I48:{n:"Lakshiv",        hi:"लक्षिव",        s:"M", gen:"Generation 10",relation:"Son of Hansraj"},
+  I49:{n:"Ashok",          hi:"अशोक",          s:"M", gen:"Generation 8", relation:"Son of Andaramji"},
+  I50:{n:"Dinesh",         hi:"दिनेश",         s:"M", gen:"Generation 8", relation:"Son of Andaramji"},
+  I51:{n:"Vratika",        hi:"व्रतिका",       s:"F", gen:"Generation 8", relation:"Daughter of Rajeev Ji"},
+  I52:{n:"Aayush",         hi:"आयुष",          s:"M", gen:"Generation 8", relation:"Son of Rajeev Ji"},
+  I53:{n:"Sunita",         hi:"सुनीता",        s:"F", gen:"Generation 8", relation:"Daughter of Ramlal Ji"},
+  I54:{n:"Shobha",         hi:"शोभा",          s:"F", gen:"Generation 8", relation:"Daughter of Ramlal Ji"},
+  I55:{n:"Pratijna",       hi:"प्रतिज्ञा",     s:"F", gen:"Generation 8", relation:"Daughter of Ramlal Ji"},
+  I56:{n:"Arvind",         hi:"अरविंद",        s:"M", gen:"Generation 8", relation:"Son of Ramlal Ji"},
+  I57:{n:"Ritika",         hi:"रितिका",        s:"F", gen:"Generation 8", relation:"Daughter of Prakash Ji"},
+  I58:{n:"Abhishek",       hi:"अभिषेक",        s:"M", gen:"Generation 8", relation:"Son of Prakash Ji"},
+  I59:{n:"Priyanshi",      hi:"प्रियांशी",     s:"F", gen:"Generation 8", relation:"Daughter of Madaram Ji"},
+  I60:{n:"Navin",          hi:"नवीन",          s:"M", gen:"Generation 8", relation:"Son of Madaram Ji"},
+  I61:{n:"Hemlata",        hi:"हेमलता",        s:"F", gen:"Generation 8", relation:"Daughter of Madaram Ji"},
+};
+
+// ═══════════════════════════════════════════
+// TREE STRUCTURE — correct branching
+// ═══════════════════════════════════════════
+const TREE={id:'I1',children:[
+  {id:'I2',children:[
+    {id:'I5',children:[
+      {id:'I8'},{id:'I9',children:[
+        {id:'I13',children:[
+          {id:'I18'},
+          {id:'I19',spouse:'I37',children:[
+            {id:'I25',spouse:'I26',children:[
+              {id:'I38'},{id:'I39',spouse:'I47',children:[{id:'I48'}]},
+              {id:'I44'},{id:'I45'}
+            ]},
+            {id:'I27',spouse:'I28',children:[{id:'I49'},{id:'I50'}]},
+            {id:'I29',spouse:'I33',children:[{id:'I51'},{id:'I52'}]},
+            {id:'I30',spouse:'I35',children:[{id:'I53'},{id:'I54'},{id:'I55'},{id:'I56'}]},
+            {id:'I31',spouse:'I36',children:[{id:'I57'},{id:'I58'}]},
+            {id:'I32',spouse:'I34',children:[{id:'I59'},{id:'I60'},{id:'I61'}]},
+            {id:'I40'},{id:'I41'},
+          ]},
+          {id:'I20'},{id:'I21'},{id:'I22'},{id:'I23'},{id:'I24'},
+          {id:'D1'},{id:'D2'},{id:'D3'},{id:'D4'},{id:'D5'},{id:'D6'},
+        ]},
+        {id:'I14'},{id:'I15'},{id:'I16'},{id:'I17'},
+      ]},{id:'I10'},{id:'I11'},{id:'I12'},
+    ]},
+    {id:'I6'},{id:'I7'},
+  ]},
+  {id:'I3'},{id:'I4'},
+]};
+
+// ═══════════════════════════════════════════
+// LAYOUT CONSTANTS — compact
+// ═══════════════════════════════════════════
+const NW   = 78;   // node slot width
+const SW   = 88;   // extra slot for spouse
+const LH   = 138;  // level height (compact)
+const PAD  = 50;
+const GEN_LABELS={
+  0:"Gen 1 — Root Ancestor",
+  1:"Gen 2 — Sons of Asuji",
+  2:"Gen 3 — Sons of Tejaji",
+  3:"Gen 4 — Sons of Chutaroji",
+  4:"Gen 5 — Sons of Pratapji",
+  5:"Gen 6 — Sons & Daughters of Umoji",
+  6:"Gen 7 — Jeetaramji's Family",
+  7:"Gen 8 — Children & Their Families",
+  8:"Gen 9 — Grandchildren's Generation",
+  9:"Gen 10 — Youngest Generation",
+};
+
+function measureWidth(node){
+  const selfW=node.spouse?(NW+SW):NW;
+  if(!node.children||!node.children.length){node._w=selfW;return}
+  node.children.forEach(c=>measureWidth(c));
+  const cw=node.children.reduce((s,c)=>s+c._w,0);
+  node._w=Math.max(selfW,cw);
+}
+
+function assignPos(node,x,y,depth){
+  node._depth=depth;
+  const hasSpouse=!!node.spouse;
+  const selfW=hasSpouse?(NW+SW):NW;
+  const slotCx=x+node._w/2;
+  node._cx=slotCx-selfW/2;
+  node._cy=y;
+  node._anchorX=hasSpouse?node._cx+(NW+SW)/2:node._cx+NW/2;
+  if(hasSpouse){node._spouseX=node._cx+NW+12;node._spouseY=y}
+  if(!node.children||!node.children.length)return;
+  let cx=x+(node._w-node.children.reduce((s,c)=>s+c._w,0))/2;
+  node.children.forEach(c=>{assignPos(c,cx,y+LH,depth+1);cx+=c._w});
+}
+
+function collectNodes(node,arr=[]){arr.push(node);if(node.children)node.children.forEach(c=>collectNodes(c,arr));return arr}
+
+function canvasSize(nodes){
+  let mxX=0,mxY=0;
+  nodes.forEach(n=>{
+    const rx=n._cx+(n.spouse?NW+SW:NW)+PAD*2;
+    const ry=n._cy+LH+PAD*2;
+    if(rx>mxX)mxX=rx;if(ry>mxY)mxY=ry;
+  });
+  return{w:mxX,h:mxY};
+}
+
+// ═══════════════════════════════════════════
+// DOM NODE BUILDER
+// ═══════════════════════════════════════════
+function photoPath(id,suf){return`photos/${id}${suf||''}.jpg`}
+
+function buildPersonEl(id,role,x,y){
+  const p=P[id];if(!p)return;
+  const isWife=(role==='wife');
+  const g=isWife?'w':(p.s==='F'?'f':'m');
+  const emoji=isWife?'💍':(p.s==='F'?'👩':'👨');
+
+  const wrap=document.createElement('div');
+  wrap.className='node';
+  wrap.style.left=(x+PAD)+'px';
+  wrap.style.top=(y+PAD)+'px';
+  wrap.addEventListener('click',e=>{e.stopPropagation();openPopup(id,role,emoji)});
+
+  // Photo / emoji circle
+  const imgEl=document.createElement('img');
+  imgEl.src=photoPath(id);
+  imgEl.alt=p.n;
+  imgEl.style.cssText='width:100%;height:100%;object-fit:cover;object-position:center top;display:block';
+  const ciw=document.createElement('div');ciw.className=`circle-img ${g}`;
+
+  imgEl.onerror=function(){
+    const ec=document.createElement('div');ec.className=`circle ${g}`;
+    const em=document.createElement('div');em.className='emoji';em.textContent=emoji;ec.appendChild(em);
+    if(role){const rb=document.createElement('div');rb.className='rel-badge-inner';
+      const L={anc:'Ancestor',son:'Son',dau:'Daughter',wife:'Wife',hus:'Husband'};
+      rb.textContent=L[role]||'';ec.appendChild(rb);}
+    ciw.replaceWith(ec);
+  };
+  ciw.appendChild(imgEl);
+  wrap.appendChild(ciw);
+
+  // Name (Hindi)
+  const nm=document.createElement('div');nm.className='nm';nm.textContent=p.hi||p.n;
+  wrap.appendChild(nm);
+
+  // Tag
+  if(role){
+    const rt=document.createElement('div');
+    const cls={anc:'tag-anc',son:'tag-son',dau:'tag-dau',wife:'tag-wife',hus:'tag-hus'};
+    rt.className='rel-tag '+(cls[role]||'');
+    const L={anc:'Ancestor',son:'Son',dau:'Daughter',wife:'Wife',hus:'Husband'};
+    rt.textContent=L[role]||'';
+    wrap.appendChild(rt);
+  }
+  document.getElementById('tree-container').appendChild(wrap);
+}
+
+// ═══════════════════════════════════════════
+// SVG LINES
+// ═══════════════════════════════════════════
+function ln(svg,x1,y1,x2,y2,col,w,dash){
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',x1+PAD);l.setAttribute('y1',y1+PAD);
+  l.setAttribute('x2',x2+PAD);l.setAttribute('y2',y2+PAD);
+  l.setAttribute('stroke',col||'#b08040');
+  l.setAttribute('stroke-width',w||2.5);
+  l.setAttribute('stroke-linecap','round');
+  if(dash)l.setAttribute('stroke-dasharray',dash);
+  svg.appendChild(l);
+}
+
+const R=28; // circle radius
+function drawLines(node,svg){
+  // Spouse dashed line
+  if(node.spouse){
+    const hx=node._cx+NW-R+2;
+    const hy=node._cy+R;
+    const wx=node._spouseX+R-2;
+    ln(svg,hx,hy,wx,hy,'#c9963a',2,'5,3');
+  }
+
+  if(node.children&&node.children.length){
+    const parentX=node._anchorX;
+    const parentY=node._cy+R*2+6; // bottom of circle
+
+    // gather child top-centres
+    const kids=node.children.map(c=>({
+      x:c._anchorX,
+      y:c._cy
+    }));
+
+    if(kids.length===1){
+      // straight line
+      ln(svg,parentX,parentY,kids[0].x,kids[0].y,'#b08040',2.5);
+    } else {
+      // elbow: parent → midpoint → horizontal bar → drop to each child
+      const midY=parentY+(kids[0].y-parentY)*0.4;
+      const leftX=Math.min(...kids.map(k=>k.x));
+      const rightX=Math.max(...kids.map(k=>k.x));
+      // vertical from parent down to horizontal bar
+      ln(svg,parentX,parentY,parentX,midY,'#b08040',2.5);
+      // horizontal bar
+      ln(svg,leftX,midY,rightX,midY,'#b08040',2.5);
+      // vertical drops to each child
+      kids.forEach(k=>ln(svg,k.x,midY,k.x,k.y,'#b08040',2));
+    }
+  }
+  if(node.children)node.children.forEach(c=>drawLines(c,svg));
+}
+
+// ═══════════════════════════════════════════
+// GENERATION LABEL BANDS
+// ═══════════════════════════════════════════
+function drawGenBands(nodes,w){
+  const tc=document.getElementById('tree-container');
+  const depthY={};
+  nodes.forEach(n=>{
+    if(!(n._depth in depthY))depthY[n._depth]=n._cy;
+  });
+  Object.entries(depthY).forEach(([dep,y])=>{
+    const label=GEN_LABELS[dep]||`Gen ${+dep+1}`;
+    const band=document.createElement('div');
+    band.className='gen-band';
+    band.style.top=(y+PAD-22)+'px';
+    band.style.left=PAD+'px';
+    band.style.width=(w-PAD*2)+'px';
+    const badge=document.createElement('div');badge.className='gen-badge';badge.textContent=label;
+    const lineEl=document.createElement('div');lineEl.className='gen-line';
+    band.appendChild(badge);band.appendChild(lineEl);
+    tc.appendChild(band);
+  });
+}
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+function render(){
+  measureWidth(TREE);
+  assignPos(TREE,0,20,0);
+  const allNodes=collectNodes(TREE);
+  const {w,h}=canvasSize(allNodes);
+
+  const canvas=document.getElementById('canvas');
+  canvas.style.width=w+'px';canvas.style.height=h+'px';
+  const svg=document.getElementById('lines-svg');
+  svg.setAttribute('width',w);svg.setAttribute('height',h);
+
+  // Gen bands first (behind nodes)
+  drawGenBands(allNodes,w);
+
+  // Nodes
+  allNodes.forEach(node=>{
+    const role=node.id==='I1'?'anc':(P[node.id]&&P[node.id].s==='F'?'dau':'son');
+    buildPersonEl(node.id,role,node._cx,node._cy);
+    if(node.spouse) buildPersonEl(node.spouse,'wife',node._spouseX,node._spouseY);
+  });
+
+  // Lines
+  drawLines(TREE,svg);
+}
+render();
+
+// ═══════════════════════════════════════════
+// POPUP
+// ═══════════════════════════════════════════
+function openPopup(id,role,emoji){
+  const p=P[id];if(!p)return;
+  const pw=document.getElementById('popup-photo-wrap');
+  const pi=document.getElementById('popup-photo');
+  const ef=document.getElementById('popup-emoji-fallback');
+  pi.src=photoPath(id);
+  pi.onerror=function(){pw.style.display='none';ef.style.display='flex';ef.textContent=emoji};
+  pi.onload=function(){pw.style.display='block';ef.style.display='none'};
+  pw.style.display='none';ef.style.display='none';
+  document.getElementById('popup-name').textContent=(p.hi||p.n)+' ('+p.n+')';
+  const rl={anc:'Root Ancestor',son:'Son',dau:'Daughter',wife:'Wife',hus:'Husband'};
+  document.getElementById('popup-role-tag').textContent=rl[role]||p.relation||'';
+  const info=document.getElementById('popup-info');info.innerHTML='';
+  [['Family','Mandhniya'],['Generation',p.gen],['Relation',p.relation],['Gender',p.s==='F'?'Female':'Male'],['Note',p.notes||'—']].forEach(([l,v])=>{
+    const le=document.createElement('div');le.className='info-label';le.textContent=l+':';
+    const ve=document.createElement('div');ve.className='info-val';ve.textContent=v;
+    info.appendChild(le);info.appendChild(ve);
+  });
+  const ep=document.getElementById('popup-extra-photos');ep.innerHTML='';
+  ['_1','_2','_3'].forEach((suf,i)=>{
+    const slot=document.createElement('div');slot.className='extra-photo';
+    const img=document.createElement('img');img.src=photoPath(id,suf);img.alt='Photo '+(i+1);
+    img.style.cssText='width:100%;height:100%;object-fit:cover';
+    img.onclick=()=>openLightbox(photoPath(id,suf));
+    img.onerror=function(){const fb=document.createElement('div');fb.className='no-photo';fb.innerHTML=`<span>📷</span><small>photos/${id}${suf}.jpg</small>`;slot.innerHTML='';slot.appendChild(fb);slot.style.cursor='default'};
+    slot.appendChild(img);ep.appendChild(slot);
+  });
+  document.getElementById('popup-overlay').classList.add('show');
+}
+function closePopup(){document.getElementById('popup-overlay').classList.remove('show')}
+document.getElementById('popup-overlay').addEventListener('click',function(e){if(e.target===this)closePopup()});
+function openLightbox(src){document.getElementById('lightbox-img').src=src;document.getElementById('lightbox').classList.add('show')}
+function closeLightbox(){document.getElementById('lightbox').classList.remove('show')}
+document.getElementById('lightbox').addEventListener('click',function(e){if(e.target===this||e.target===document.getElementById('lightbox-img'))closeLightbox()});
+
+// ═══════════════════════════════════════════
+// PAN + ZOOM
+// ═══════════════════════════════════════════
+const vp=document.getElementById('viewport');
+const cv=document.getElementById('canvas');
+let sc=1,tx=0,ty=0,pan=false,sx=0,sy=0,stx=0,sty=0;
+function apT(){cv.style.transform=`translate(${tx}px,${ty}px) scale(${sc})`}
+function clS(s){return Math.min(4,Math.max(0.1,s))}
+function resetView(){
+  const vw=vp.clientWidth,vh=vp.clientHeight;
+  const tw=cv.scrollWidth||cv.offsetWidth;
+  const th=cv.scrollHeight||cv.offsetHeight;
+  sc=clS(Math.min(1,(vw-40)/tw,(vh-80)/th));
+  tx=(vw-tw*sc)/2;ty=30;apT();
+}
+function zoomAt(cx,cy,f){const ns=clS(sc*f),r=ns/sc;tx=cx-r*(cx-tx);ty=cy-r*(cy-ty);sc=ns;apT()}
+function zoom(f){zoomAt(vp.clientWidth/2,vp.clientHeight/2,f)}
+vp.addEventListener('wheel',e=>{e.preventDefault();const rc=vp.getBoundingClientRect();zoomAt(e.clientX-rc.left,e.clientY-rc.top,e.deltaY<0?1.12:.89)},{passive:false});
+vp.addEventListener('mousedown',e=>{if(e.button!==0)return;pan=true;sx=e.clientX;sy=e.clientY;stx=tx;sty=ty;vp.classList.add('grabbing')});
+window.addEventListener('mousemove',e=>{if(!pan)return;tx=stx+(e.clientX-sx);ty=sty+(e.clientY-sy);apT()});
+window.addEventListener('mouseup',()=>{pan=false;vp.classList.remove('grabbing')});
+let lt=[];
+vp.addEventListener('touchstart',e=>{e.preventDefault();lt=Array.from(e.touches)},{passive:false});
+vp.addEventListener('touchmove',e=>{
+  e.preventDefault();const t=Array.from(e.touches);const rc=vp.getBoundingClientRect();
+  if(t.length===1&&lt.length===1){tx+=t[0].clientX-lt[0].clientX;ty+=t[0].clientY-lt[0].clientY;apT();}
+  else if(t.length===2&&lt.length>=2){
+    const pd=Math.hypot(lt[0].clientX-lt[1].clientX,lt[0].clientY-lt[1].clientY);
+    const cd=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+    const mx=((t[0].clientX+t[1].clientX)/2)-rc.left;
+    const my=((t[0].clientY+t[1].clientY)/2)-rc.top;
+    const pmx=((lt[0].clientX+lt[1].clientX)/2)-rc.left;
+    const pmy=((lt[0].clientY+lt[1].clientY)/2)-rc.top;
+    zoomAt(mx,my,cd/pd);tx+=mx-pmx;ty+=my-pmy;apT();
+  }
+  lt=t;
+},{passive:false});
+vp.addEventListener('touchend',e=>{lt=Array.from(e.touches)},{passive:false});
+window.addEventListener('load',()=>setTimeout(resetView,150));
+setTimeout(resetView,300);
+</script>
+</body>
+</html>
+ENDOFFILE
+echo "Done"
